@@ -16,11 +16,17 @@ extern crate lazy_static;
 #[macro_use]
 extern crate tera;
 
+#[macro_use]
+extern crate juniper;
+
+extern crate actix;
+extern crate actix_web;
+
 extern crate fern;
 extern crate regex;
 extern crate serde;
 extern crate chrono;
-extern crate actix_web;
+extern crate futures;
 extern crate serde_json;
 extern crate serde_yaml;
 
@@ -29,6 +35,7 @@ pub mod server;
 mod errors {
   error_chain! {
     foreign_links {
+      Serde(::serde_json::Error);
       Log(::log::SetLoggerError);
       Io(::std::io::Error);
     }
