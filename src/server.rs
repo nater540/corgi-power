@@ -1,6 +1,5 @@
 use std::sync::Arc;
 
-// use futures::future::Future;
 use futures::future::{Future, result};
 use juniper::http::{GraphQLRequest, graphiql::graphiql_source};
 
@@ -11,9 +10,6 @@ use actix_web::{
 };
 
 use super::errors::*;
-
-// mod routes;
-// pub mod render;
 
 use super::graphql as GraphQL;
 
@@ -53,13 +49,11 @@ pub struct AppState {
 }
 pub type CorgiState = State<Arc<AppState>>;
 
+/// GraphiQL handler.
 fn graphiql(_req: &HttpRequest<AppState>) -> FutureResponse<HttpResponse> {
-  let html = graphiql_source("http://localhost:8080/graphql");
-  result(
-    Ok(
-      HttpResponse::Ok().content_type("text/html; charset=utf-8").body(html)
-    )
-  ).responder()
+  let html     = graphiql_source("http://localhost:8080/graphql");
+  let response = HttpResponse::Ok().content_type("text/html; charset=utf-8").body(html);
+  result(Ok(response)).responder()
 }
 
 fn graphql((state, data): (State<AppState>, Json<GraphQLData>)) -> FutureResponse<HttpResponse> {
@@ -67,8 +61,8 @@ fn graphql((state, data): (State<AppState>, Json<GraphQLData>)) -> FutureRespons
     .send(data.0)
     .from_err()
     .and_then(|res| match res {
-      Ok(gql_data) => {
-        Ok(HttpResponse::Ok().content_type("application/json").body(gql_data))
+      Ok(json_data) => {
+        Ok(HttpResponse::Ok().content_type("application/json").body(json_data))
       },
       Err(_) => Ok(HttpResponse::InternalServerError().into()),
     })
@@ -102,8 +96,7 @@ pub fn start(address: &str) -> Result<()> {
 
   info!("Server running on {}", address);
   HttpServer::new(corgi_app)
-    .bind(address)
-    .unwrap()
+    .bind(address)?
     .start();
 
   Ok(())
