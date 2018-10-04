@@ -1,14 +1,13 @@
 use std::sync::Arc;
 
-use futures::future::Future;
+// use futures::future::Future;
+use futures::future::{Future, result};
 use juniper::http::{GraphQLRequest, graphiql::graphiql_source};
 
-use actix::{Message, SyncContext, SyncArbiter, Addr, Actor, Context};
-// use ::actix::prelude::*;
-
+use ::actix::prelude::*;
 use actix_web::{
-  server::HttpServer, http::Method, HttpRequest, HttpResponse,
-  App, AsyncResponder, FutureResponse, State, Json, dev::Handler
+  server::HttpServer, http::Method, HttpRequest, AsyncResponder, HttpResponse, FutureResponse, App, State, Json,
+  middleware::{Logger, cors::Cors}
 };
 
 use super::errors::*;
@@ -18,12 +17,6 @@ pub mod render;
 
 mod graphql;
 use self::graphql::Schema as Schema;
-
-pub struct AppState {
-  executor: Addr<GraphQLExecutor>
-}
-
-pub type CorgiState = State<Arc<AppState>>;
 
 #[derive(Serialize, Deserialize)]
 pub struct GraphQLData(GraphQLRequest);
@@ -49,30 +42,39 @@ impl Actor for GraphQLExecutor {
 impl Handler<GraphQLData> for GraphQLExecutor {
   type Result = Result<String>;
 
-  fn handle(&mut self, msg: GraphQLData, _: &mut Self::Context) -> Self::Result {
+  fn handle(&mut self, msg: GraphQLData, _ctx: &mut Self::Context) -> Self::Result {
     let res = msg.0.execute(&self.schema, &());
     let res_text = serde_json::to_string(&res)?;
     Ok(res_text)
   }
 }
 
-// fn graphiql(_req: &HttpRequest<AppState>) -> Result<HttpResponse, actix_web::Error> {
-//   let html = graphiql_source("http://127.0.0.1:8080/graphql");
-//   Ok(HttpResponse::Ok().content_type("text/html; charset=utf-8").body(html))
-// }
+pub struct AppState {
+  executor: Addr<GraphQLExecutor>
+}
+pub type CorgiState = State<Arc<AppState>>;
 
-// fn graphql((state, data): (State<AppState>, Json<GraphQLData>)) -> FutureResponse<HttpResponse> {
-//   state.executor
-//     .send(data.0)
-//     .from_err()
-//     .and_then(|res| match res {
-//       Ok(gql_data) => {
-//         Ok(HttpResponse::Ok().content_type("application/json").body(gql_data))
-//       },
-//       Err(_) => Ok(HttpResponse::InternalServerError().into()),
-//     })
-//     .responder()
-// }
+fn graphiql(_req: &HttpRequest<AppState>) -> FutureResponse<HttpResponse> {
+  let html = graphiql_source("http://localhost:8080/graphql");
+  result(
+    Ok(
+      HttpResponse::Ok().content_type("text/html; charset=utf-8").body(html)
+    )
+  ).responder()
+}
+
+fn graphql((state, data): (State<AppState>, Json<GraphQLData>)) -> FutureResponse<HttpResponse> {
+  state.executor
+    .send(data.0)
+    .from_err()
+    .and_then(|res| match res {
+      Ok(gql_data) => {
+        Ok(HttpResponse::Ok().content_type("application/json").body(gql_data))
+      },
+      Err(_) => Ok(HttpResponse::InternalServerError().into()),
+    })
+    .responder()
+}
 
 /// Start the Corgi server.
 ///
@@ -83,6 +85,15 @@ pub fn start(address: &str) -> Result<()> {
 
   let corgi_app = move || {
     App::with_state(AppState { executor: addr.clone() })
+      .middleware(Logger::default())
+      .configure(|app| {
+        Cors::for_app(app)
+          .allowed_origin("http://localhost:8080")
+          .allowed_origin("http://127.0.0.1:8080")
+          .resource("/graphql", |r| r.method(Method::POST).with(graphql))
+          .register()
+      })
+      .resource("/graphiql", |r| r.method(Method::GET).h(graphiql))
       // .route("/", Method::GET, routes::index)
       // .resource("/health", |res| {
       //   res.method(Method::GET)
