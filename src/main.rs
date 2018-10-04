@@ -31,6 +31,7 @@ extern crate serde_json;
 extern crate serde_yaml;
 
 pub mod server;
+pub mod graphql;
 
 mod errors {
   error_chain! {

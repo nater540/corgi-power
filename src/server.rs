@@ -12,11 +12,10 @@ use actix_web::{
 
 use super::errors::*;
 
-mod routes;
-pub mod render;
+// mod routes;
+// pub mod render;
 
-mod graphql;
-use self::graphql::Schema as Schema;
+use super::graphql as GraphQL;
 
 #[derive(Serialize, Deserialize)]
 pub struct GraphQLData(GraphQLRequest);
@@ -26,11 +25,11 @@ impl Message for GraphQLData {
 }
 
 pub struct GraphQLExecutor {
-  schema: Arc<Schema>
+  schema: Arc<GraphQL::Schema>
 }
 
 impl GraphQLExecutor {
-  fn new(schema: Arc<Schema>) -> GraphQLExecutor {
+  fn new(schema: Arc<GraphQL::Schema>) -> GraphQLExecutor {
     GraphQLExecutor { schema: schema }
   }
 }
@@ -80,7 +79,7 @@ fn graphql((state, data): (State<AppState>, Json<GraphQLData>)) -> FutureRespons
 ///
 pub fn start(address: &str) -> Result<()> {
 
-  let schema = Arc::new(graphql::create_schema());
+  let schema = Arc::new(GraphQL::create_schema());
   let addr = SyncArbiter::start(3, move || GraphQLExecutor::new(schema.clone()));
 
   let corgi_app = move || {
